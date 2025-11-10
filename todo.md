@@ -92,3 +92,12 @@
 - [x] Add trade history with full details (entry, exit, profit, strategy used)
 - [x] Build position management (view open positions, close manually)
 - [ ] Add risk monitoring (daily loss limits, position size validation)
+
+## Trading UI Page
+- [x] Create "My Trades" page component
+- [x] Display open positions with real-time P&L
+- [x] Show trade history table with filters
+- [x] Add performance statistics dashboard
+- [x] Implement "Open Trade" dialog/form
+- [x] Add "Close Position" buttons with confirmation
+- [x] Create route and navigation for trades page

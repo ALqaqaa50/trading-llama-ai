@@ -100,9 +100,18 @@ export default function TradingDashboard() {
         {/* Header */}
         <div className="flex items-center justify-between">
           <h1 className="text-3xl font-bold text-slate-100">Trading Llama AI</h1>
-          <Badge variant="outline" className="bg-green-500/10 text-green-400 border-green-500/50">
-            متصل بـ OKX
-          </Badge>
+          <div className="flex gap-3 items-center">
+            <Button
+              variant="outline"
+              className="border-blue-500 text-blue-500 hover:bg-blue-500/10"
+              onClick={() => window.location.href = '/trades'}
+            >
+              📊 صفقاتي
+            </Button>
+            <Badge variant="outline" className="bg-green-500/10 text-green-400 border-green-500/50">
+              متصل بـ OKX
+            </Badge>
+          </div>
         </div>
 
         {/* Market Overview */}

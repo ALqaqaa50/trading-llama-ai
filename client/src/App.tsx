@@ -5,6 +5,7 @@ import { Route, Switch } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import Home from "./pages/Home";
+import MyTrades from "./pages/MyTrades";
 import ApiKeySetup from "./pages/ApiKeySetup";
 import TradingDashboard from "./pages/TradingDashboard";
 
@@ -14,6 +15,7 @@ function Router() {
       <Route path={"/"} component={Home} />
       <Route path={"/setup"} component={ApiKeySetup} />
       <Route path={"/dashboard"} component={TradingDashboard} />
+      <Route path={"/trades"} component={MyTrades} />
       <Route path={"/404"} component={NotFound} />
       {/* Final fallback route */}
       <Route component={NotFound} />
