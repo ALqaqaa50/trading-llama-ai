@@ -42,6 +42,26 @@ export default function TradingDashboard() {
     { refetchInterval: 60000 } // Refresh every minute
   );
 
+  // AI Chat mutation
+  const chatMutation = trpc.ai.chat.useMutation({
+    onSuccess: (data) => {
+      const aiMessage: Message = {
+        role: "assistant",
+        content: data.response,
+        timestamp: new Date(),
+      };
+      setMessages((prev) => [...prev, aiMessage]);
+    },
+    onError: (error) => {
+      const errorMessage: Message = {
+        role: "assistant",
+        content: `عذراً، حدث خطأ: ${error.message}`,
+        timestamp: new Date(),
+      };
+      setMessages((prev) => [...prev, errorMessage]);
+    },
+  });
+
   const handleSendMessage = () => {
     if (!inputMessage.trim()) return;
 
@@ -53,15 +73,11 @@ export default function TradingDashboard() {
 
     setMessages((prev) => [...prev, userMessage]);
 
-    // Simulate AI response (will be replaced with actual Llama integration)
-    setTimeout(() => {
-      const aiMessage: Message = {
-        role: "assistant",
-        content: `تلقيت رسالتك: "${inputMessage}". سأقوم بتحليلها وإعطائك رد مفصل قريباً. (هذه رسالة تجريبية - سيتم دمج نموذج Llama قريباً)`,
-        timestamp: new Date(),
-      };
-      setMessages((prev) => [...prev, aiMessage]);
-    }, 1000);
+    // Call real AI backend
+    chatMutation.mutate({
+      message: inputMessage,
+      symbol: selectedSymbol,
+    });
 
     setInputMessage("");
   };
@@ -215,10 +231,14 @@ export default function TradingDashboard() {
                 />
                 <Button
                   onClick={handleSendMessage}
-                  disabled={!inputMessage.trim()}
+                  disabled={!inputMessage.trim() || chatMutation.isPending}
                   className="bg-blue-600 hover:bg-blue-700"
                 >
-                  <Send className="w-4 h-4" />
+                  {chatMutation.isPending ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Send className="w-4 h-4" />
+                  )}
                 </Button>
               </div>
             </CardContent>
