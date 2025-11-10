@@ -101,3 +101,13 @@
 - [x] Implement "Open Trade" dialog/form
 - [x] Add "Close Position" buttons with confirmation
 - [x] Create route and navigation for trades page
+
+## Automated Trading Bot
+- [x] Create background worker for continuous data streaming
+- [x] Build AI analysis engine that runs every minute
+- [x] Implement auto-execution logic (buy/sell decisions)
+- [x] Add bot control panel (start/stop, settings)
+- [x] Create trading strategy configuration (RSI thresholds, MACD signals, etc.)
+- [x] Add safety limits (max trades per day, max loss per day)
+- [x] Implement bot activity logging and monitoring
+- [x] Add real-time bot status display in UI

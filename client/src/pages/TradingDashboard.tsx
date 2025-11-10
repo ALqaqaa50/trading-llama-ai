@@ -103,6 +103,13 @@ export default function TradingDashboard() {
           <div className="flex gap-3 items-center">
             <Button
               variant="outline"
+              className="border-purple-500 text-purple-500 hover:bg-purple-500/10"
+              onClick={() => window.location.href = '/bot'}
+            >
+              🤖 البوت
+            </Button>
+            <Button
+              variant="outline"
               className="border-blue-500 text-blue-500 hover:bg-blue-500/10"
               onClick={() => window.location.href = '/trades'}
             >

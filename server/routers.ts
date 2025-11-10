@@ -475,6 +475,68 @@ export const appRouter = router({
         return await getAccountBalance(ctx.user.id);
       }),
   }),
+
+  // Trading Bot Router
+  bot: router({
+    start: protectedProcedure
+      .input(z.object({
+        symbol: z.string(),
+        timeframe: z.string().default('1m'),
+        rsiOverbought: z.number().default(70),
+        rsiOversold: z.number().default(30),
+        useMACD: z.boolean().default(true),
+        useCandlestickPatterns: z.boolean().default(true),
+        useAIConfirmation: z.boolean().default(true),
+        maxTradesPerDay: z.number().default(10),
+        maxDailyLoss: z.number().default(100),
+        positionSizePercent: z.number().default(2),
+        stopLossPercent: z.number().default(2),
+        takeProfitPercent: z.number().default(4),
+        leverage: z.number().default(1),
+        tradeType: z.enum(['spot', 'futures']).default('spot'),
+        marginMode: z.enum(['isolated', 'cross']).default('isolated'),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const { startBot } = await import('./services/tradingBot');
+        
+        const config = {
+          userId: ctx.user.id,
+          symbol: input.symbol,
+          timeframe: input.timeframe,
+          enabled: true,
+          rsiOverbought: input.rsiOverbought,
+          rsiOversold: input.rsiOversold,
+          useMACD: input.useMACD,
+          useCandlestickPatterns: input.useCandlestickPatterns,
+          useAIConfirmation: input.useAIConfirmation,
+          maxTradesPerDay: input.maxTradesPerDay,
+          maxDailyLoss: input.maxDailyLoss,
+          positionSizePercent: input.positionSizePercent,
+          stopLossPercent: input.stopLossPercent,
+          takeProfitPercent: input.takeProfitPercent,
+          leverage: input.leverage,
+          tradeType: input.tradeType,
+          marginMode: input.marginMode,
+        };
+        
+        const success = await startBot(config);
+        return { success };
+      }),
+
+    stop: protectedProcedure
+      .mutation(async ({ ctx }) => {
+        const { stopBot } = await import('./services/tradingBot');
+        const success = stopBot(ctx.user.id);
+        return { success };
+      }),
+
+    getStatus: protectedProcedure
+      .query(async ({ ctx }) => {
+        const { getBotStatus } = await import('./services/tradingBot');
+        const status = getBotStatus(ctx.user.id);
+        return status;
+      }),
+  }),
 });
 
 export type AppRouter = typeof appRouter;

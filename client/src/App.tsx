@@ -6,6 +6,7 @@ import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import Home from "./pages/Home";
 import MyTrades from "./pages/MyTrades";
+import BotControl from "./pages/BotControl";
 import ApiKeySetup from "./pages/ApiKeySetup";
 import TradingDashboard from "./pages/TradingDashboard";
 
@@ -16,6 +17,7 @@ function Router() {
       <Route path={"/setup"} component={ApiKeySetup} />
       <Route path={"/dashboard"} component={TradingDashboard} />
       <Route path={"/trades"} component={MyTrades} />
+      <Route path={"/bot"} component={BotControl} />
       <Route path={"/404"} component={NotFound} />
       {/* Final fallback route */}
       <Route component={NotFound} />
