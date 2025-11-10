@@ -20,7 +20,41 @@ export type User = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;
 
 /**
- * Encrypted API keys for exchange connections (OKX, Binance, etc.)
+ * Trade execution history table
+ * Stores all executed trades with full details
+ */
+export const tradeExecutions = mysqlTable("trade_executions", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  orderId: varchar("orderId", { length: 255 }),
+  symbol: varchar("symbol", { length: 50 }).notNull(),
+  side: mysqlEnum("side", ["buy", "sell"]).notNull(),
+  type: mysqlEnum("type", ["market", "limit", "stop_loss", "take_profit"]).notNull(),
+  amount: varchar("amount", { length: 50 }).notNull(),
+  price: varchar("price", { length: 50 }),
+  stopLoss: varchar("stopLoss", { length: 50 }),
+  takeProfit: varchar("takeProfit", { length: 50 }),
+  leverage: int("leverage"),
+  marginMode: mysqlEnum("marginMode", ["isolated", "cross"]),
+  status: mysqlEnum("status", ["pending", "filled", "partially_filled", "canceled", "failed"]).notNull(),
+  filledAmount: varchar("filledAmount", { length: 50 }),
+  averagePrice: varchar("averagePrice", { length: 50 }),
+  fee: varchar("fee", { length: 50 }),
+  pnl: varchar("pnl", { length: 50 }),
+  pnlPercent: varchar("pnlPercent", { length: 50 }),
+  strategyUsed: text("strategyUsed"),
+  aiRecommendation: text("aiRecommendation"),
+  errorMessage: text("errorMessage"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  closedAt: timestamp("closedAt"),
+});
+
+export type TradeExecution = typeof tradeExecutions.$inferSelect;
+export type InsertTradeExecution = typeof tradeExecutions.$inferInsert;
+
+/**
+ * API Keys table for exchange connections (OKX, Binance, etc.)
  * Keys are encrypted at rest for security
  */
 export const apiKeys = mysqlTable("api_keys", {

@@ -350,6 +350,131 @@ export const appRouter = router({
       return await getUserChatHistory(ctx.user.id, 100);
     }),
   }),
+
+  // Trading Execution & Position Management
+  trading: router({
+    // Place a new trade order
+    placeOrder: protectedProcedure
+      .input(z.object({
+        symbol: z.string(),
+        side: z.enum(['buy', 'sell']),
+        type: z.enum(['market', 'limit', 'stop_loss', 'take_profit']),
+        amount: z.number().positive(),
+        price: z.number().positive().optional(),
+        stopLoss: z.number().positive().optional(),
+        takeProfit: z.number().positive().optional(),
+        leverage: z.number().int().min(1).max(125).optional(),
+        marginMode: z.enum(['isolated', 'cross']).optional(),
+        strategyUsed: z.string().optional(),
+        aiRecommendation: z.string().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const { placeOrder } = await import('./services/okxTradingService');
+        const { saveTradeExecution } = await import('./db_trading');
+        
+        const result = await placeOrder(ctx.user.id, input);
+        
+        // Save to database
+        await saveTradeExecution({
+          userId: ctx.user.id,
+          orderId: result.orderId || null,
+          symbol: input.symbol,
+          side: input.side,
+          type: input.type,
+          amount: input.amount.toString(),
+          price: input.price?.toString() || null,
+          stopLoss: input.stopLoss?.toString() || null,
+          takeProfit: input.takeProfit?.toString() || null,
+          leverage: input.leverage || null,
+          marginMode: input.marginMode || null,
+          status: result.success ? 'filled' : 'failed',
+          averagePrice: result.price?.toString() || null,
+          strategyUsed: input.strategyUsed || null,
+          aiRecommendation: input.aiRecommendation || null,
+          errorMessage: result.error || null,
+        });
+        
+        return result;
+      }),
+
+    // Get open positions
+    getOpenPositions: protectedProcedure
+      .input(z.object({
+        symbol: z.string().optional(),
+      }))
+      .query(async ({ ctx, input }) => {
+        const { getOpenPositions } = await import('./services/okxTradingService');
+        return await getOpenPositions(ctx.user.id, input.symbol);
+      }),
+
+    // Close a position
+    closePosition: protectedProcedure
+      .input(z.object({
+        symbol: z.string(),
+        amount: z.number().positive().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const { closePosition } = await import('./services/okxTradingService');
+        const { saveTradeExecution, getOpenTrades, updateTradeExecution } = await import('./db_trading');
+        
+        const result = await closePosition(ctx.user.id, input.symbol, input.amount);
+        
+        // Update the original trade with P&L
+        const openTrades = await getOpenTrades(ctx.user.id);
+        const originalTrade = openTrades.find(t => t.symbol === input.symbol);
+        
+        if (originalTrade && result.success) {
+          const entryPrice = parseFloat(originalTrade.price || '0');
+          const exitPrice = result.price || 0;
+          const amount = parseFloat(originalTrade.amount);
+          
+          const pnl = originalTrade.side === 'buy' 
+            ? (exitPrice - entryPrice) * amount
+            : (entryPrice - exitPrice) * amount;
+          
+          const pnlPercent = ((pnl / (entryPrice * amount)) * 100);
+          
+          await updateTradeExecution(originalTrade.id, {
+            pnl: pnl.toString(),
+            pnlPercent: pnlPercent.toString(),
+            closedAt: new Date(),
+          });
+        }
+        
+        return result;
+      }),
+
+    // Get trade history
+    getTradeHistory: protectedProcedure
+      .input(z.object({
+        limit: z.number().int().min(1).max(500).optional(),
+      }))
+      .query(async ({ ctx, input }) => {
+        const { getTradeExecutionsByUserId } = await import('./db_trading');
+        return await getTradeExecutionsByUserId(ctx.user.id, input.limit);
+      }),
+
+    // Get open trades from database
+    getOpenTrades: protectedProcedure
+      .query(async ({ ctx }) => {
+        const { getOpenTrades } = await import('./db_trading');
+        return await getOpenTrades(ctx.user.id);
+      }),
+
+    // Get P&L statistics
+    getPnLStats: protectedProcedure
+      .query(async ({ ctx }) => {
+        const { calculateTotalPnL } = await import('./db_trading');
+        return await calculateTotalPnL(ctx.user.id);
+      }),
+
+    // Get account balance
+    getBalance: protectedProcedure
+      .query(async ({ ctx }) => {
+        const { getAccountBalance } = await import('./services/okxTradingService');
+        return await getAccountBalance(ctx.user.id);
+      }),
+  }),
 });
 
 export type AppRouter = typeof appRouter;
