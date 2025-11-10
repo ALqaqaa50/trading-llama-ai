@@ -554,6 +554,118 @@ export const appRouter = router({
         return status;
       }),
   }),
+
+  // Backtesting Engine
+  backtest: router({
+    // Run backtest on historical data
+    run: protectedProcedure
+      .input(z.object({
+        symbol: z.string(),
+        timeframe: z.string(),
+        startDate: z.string(), // ISO date string
+        endDate: z.string(), // ISO date string
+        initialCapital: z.number().default(1000),
+        strategy: z.object({
+          name: z.string(),
+          rsiEnabled: z.boolean().optional(),
+          rsiOversold: z.number().optional(),
+          rsiOverbought: z.number().optional(),
+          macdEnabled: z.boolean().optional(),
+          bbEnabled: z.boolean().optional(),
+          maEnabled: z.boolean().optional(),
+          maPeriodFast: z.number().optional(),
+          maPeriodSlow: z.number().optional(),
+        }),
+        riskPerTrade: z.number().default(0.02),
+        maxPositions: z.number().default(1),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const { runBacktest } = await import('./services/backtestingEngine');
+        
+        const result = await runBacktest({
+          symbol: input.symbol,
+          timeframe: input.timeframe,
+          startDate: new Date(input.startDate),
+          endDate: new Date(input.endDate),
+          initialCapital: input.initialCapital,
+          strategy: input.strategy,
+          riskPerTrade: input.riskPerTrade,
+          maxPositions: input.maxPositions,
+        });
+
+        // Save result to database
+        const { saveBacktestResult } = await import('./db');
+        await saveBacktestResult({
+          userId: ctx.user.id,
+          strategyName: result.strategy,
+          symbol: result.symbol,
+          timeframe: result.timeframe,
+          startDate: result.startDate,
+          endDate: result.endDate,
+          initialCapital: result.initialCapital.toString(),
+          finalCapital: result.finalCapital.toString(),
+          totalReturn: result.totalReturnPercent.toFixed(2),
+          sharpeRatio: result.sharpeRatio.toFixed(2),
+          maxDrawdown: result.maxDrawdownPercent.toFixed(2),
+          winRate: result.winRate.toFixed(2),
+          totalTrades: result.totalTrades,
+          winningTrades: result.winningTrades,
+          losingTrades: result.losingTrades,
+          avgWin: result.avgWin.toFixed(2),
+          avgLoss: result.avgLoss.toFixed(2),
+          profitFactor: result.profitFactor.toFixed(2),
+          parameters: JSON.stringify(input.strategy),
+        });
+
+        return result;
+      }),
+
+    // Get user's backtest history
+    getHistory: protectedProcedure
+      .query(async ({ ctx }) => {
+        const { getUserBacktestResults } = await import('./db');
+        return await getUserBacktestResults(ctx.user.id);
+      }),
+
+    // Compare multiple strategies
+    compare: protectedProcedure
+      .input(z.object({
+        symbol: z.string(),
+        timeframe: z.string(),
+        startDate: z.string(),
+        endDate: z.string(),
+        initialCapital: z.number().default(1000),
+        strategies: z.array(z.object({
+          name: z.string(),
+          rsiEnabled: z.boolean().optional(),
+          rsiOversold: z.number().optional(),
+          rsiOverbought: z.number().optional(),
+          macdEnabled: z.boolean().optional(),
+          bbEnabled: z.boolean().optional(),
+          maEnabled: z.boolean().optional(),
+          maPeriodFast: z.number().optional(),
+          maPeriodSlow: z.number().optional(),
+        })),
+        riskPerTrade: z.number().default(0.02),
+        maxPositions: z.number().default(1),
+      }))
+      .mutation(async ({ input }) => {
+        const { compareStrategies } = await import('./services/backtestingEngine');
+        
+        const configs = input.strategies.map(strategy => ({
+          symbol: input.symbol,
+          timeframe: input.timeframe,
+          startDate: new Date(input.startDate),
+          endDate: new Date(input.endDate),
+          initialCapital: input.initialCapital,
+          strategy,
+          riskPerTrade: input.riskPerTrade,
+          maxPositions: input.maxPositions,
+        }));
+
+        return await compareStrategies(configs);
+      }),
+  }),
 });
 
 export type AppRouter = typeof appRouter;
