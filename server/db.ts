@@ -1,6 +1,5 @@
-import { eq, and, desc, asc, gte, lte, sql } from "drizzle-orm";
-import { drizzle } from "drizzle-orm/neon-http";
-import { neon } from "@neondatabase/serverless";
+import { eq, and, desc, asc, gte, lte } from "drizzle-orm";
+import { drizzle } from "drizzle-orm/mysql2";
 import { 
   InsertUser, 
   users, 
@@ -32,16 +31,12 @@ let _db: ReturnType<typeof drizzle> | null = null;
 
 // Lazily create the drizzle instance so local tooling can run without a DB.
 export async function getDb() {
-  if (!_db) {
-    const connectionString = process.env.NEON_DATABASE_URL || process.env.DATABASE_URL;
-    if (connectionString) {
-      try {
-        const sql = neon(connectionString);
-        _db = drizzle(sql);
-      } catch (error) {
-        console.warn("[Database] Failed to connect:", error);
-        _db = null;
-      }
+  if (!_db && process.env.DATABASE_URL) {
+    try {
+      _db = drizzle(process.env.DATABASE_URL);
+    } catch (error) {
+      console.warn("[Database] Failed to connect:", error);
+      _db = null;
     }
   }
   return _db;
@@ -99,9 +94,7 @@ export async function upsertUser(user: InsertUser): Promise<void> {
       updateSet.lastSignedIn = new Date();
     }
 
-    // PostgreSQL upsert using onConflictDoUpdate
-    await db.insert(users).values(values).onConflictDoUpdate({
-      target: users.openId,
+    await db.insert(users).values(values).onDuplicateKeyUpdate({
       set: updateSet,
     });
   } catch (error) {
@@ -128,8 +121,11 @@ export async function saveApiKey(apiKey: InsertApiKey): Promise<ApiKey> {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
 
-  const result = await db.insert(apiKeys).values(apiKey).returning();
-  return result[0];
+  const result = await db.insert(apiKeys).values(apiKey);
+  const insertedId = Number(result[0].insertId);
+  
+  const inserted = await db.select().from(apiKeys).where(eq(apiKeys.id, insertedId)).limit(1);
+  return inserted[0];
 }
 
 export async function getApiKeysByUserId(userId: number): Promise<ApiKey[]> {
@@ -225,8 +221,11 @@ export async function saveTradingSignal(signal: InsertTradingSignal): Promise<Tr
   const db = await getDb();
   if (!db) throw new Error("Database not available");
 
-  const result = await db.insert(tradingSignals).values(signal).returning();
-  return result[0];
+  const result = await db.insert(tradingSignals).values(signal);
+  const insertedId = Number(result[0].insertId);
+  
+  const inserted = await db.select().from(tradingSignals).where(eq(tradingSignals.id, insertedId)).limit(1);
+  return inserted[0];
 }
 
 export async function getUserSignals(userId: number, limit: number = 50): Promise<TradingSignal[]> {
@@ -257,8 +256,11 @@ export async function saveTrade(trade: InsertTrade): Promise<Trade> {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
 
-  const result = await db.insert(trades).values(trade).returning();
-  return result[0];
+  const result = await db.insert(trades).values(trade);
+  const insertedId = Number(result[0].insertId);
+  
+  const inserted = await db.select().from(trades).where(eq(trades.id, insertedId)).limit(1);
+  return inserted[0];
 }
 
 export async function getUserTrades(userId: number, limit: number = 100): Promise<Trade[]> {
@@ -292,8 +294,11 @@ export async function saveBacktestResult(result: InsertBacktestResult): Promise<
   const db = await getDb();
   if (!db) throw new Error("Database not available");
 
-  const insertResult = await db.insert(backtestResults).values(result).returning();
-  return insertResult[0];
+  const insertResult = await db.insert(backtestResults).values(result);
+  const insertedId = Number(insertResult[0].insertId);
+  
+  const inserted = await db.select().from(backtestResults).where(eq(backtestResults.id, insertedId)).limit(1);
+  return inserted[0];
 }
 
 export async function getUserBacktestResults(userId: number, limit: number = 50): Promise<BacktestResult[]> {
@@ -312,8 +317,11 @@ export async function saveChatMessage(message: InsertChatMessage): Promise<ChatM
   const db = await getDb();
   if (!db) throw new Error("Database not available");
 
-  const result = await db.insert(chatMessages).values(message).returning();
-  return result[0];
+  const result = await db.insert(chatMessages).values(message);
+  const insertedId = Number(result[0].insertId);
+  
+  const inserted = await db.select().from(chatMessages).where(eq(chatMessages.id, insertedId)).limit(1);
+  return inserted[0];
 }
 
 export async function getUserChatHistory(userId: number, limit: number = 100): Promise<ChatMessage[]> {

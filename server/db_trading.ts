@@ -17,8 +17,8 @@ export async function saveTradeExecution(trade: InsertTradeExecution) {
   }
 
   try {
-    const result = await db.insert(tradeExecutions).values(trade).returning();
-    return result[0];
+    const [result] = await db.insert(tradeExecutions).values(trade);
+    return result;
   } catch (error) {
     console.error("[Database] Failed to save trade execution:", error);
     throw error;

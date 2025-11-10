@@ -1,12 +1,26 @@
 {
   "version": "7",
-  "dialect": "postgresql",
+  "dialect": "mysql",
   "entries": [
     {
       "idx": 0,
-      "version": "7",
-      "when": 1762808101231,
-      "tag": "0000_fixed_omega_sentinel",
+      "version": "5",
+      "when": 1762784713203,
+      "tag": "0000_clammy_lord_hawal",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "5",
+      "when": 1762784799719,
+      "tag": "0001_tense_katie_power",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1762788195712,
+      "tag": "0002_adorable_cloak",
       "breakpoints": true
     }
   ]
