@@ -1,0 +1,63 @@
+version: '3.8'
+
+services:
+  trading-llama-ai:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: trading-llama-ai
+    ports:
+      - "3000:3000"
+    environment:
+      # Node Environment
+      - NODE_ENV=production
+      
+      # Database (Neon PostgreSQL)
+      - NEON_DATABASE_URL=${NEON_DATABASE_URL}
+      - DATABASE_URL=${NEON_DATABASE_URL}
+      
+      # JWT Secret
+      - JWT_SECRET=${JWT_SECRET}
+      
+      # OAuth Configuration
+      - VITE_APP_ID=${VITE_APP_ID}
+      - OAUTH_SERVER_URL=${OAUTH_SERVER_URL}
+      - VITE_OAUTH_PORTAL_URL=${VITE_OAUTH_PORTAL_URL}
+      
+      # Owner Information
+      - OWNER_OPEN_ID=${OWNER_OPEN_ID}
+      - OWNER_NAME=${OWNER_NAME}
+      
+      # Manus Built-in APIs
+      - BUILT_IN_FORGE_API_KEY=${BUILT_IN_FORGE_API_KEY}
+      - BUILT_IN_FORGE_API_URL=${BUILT_IN_FORGE_API_URL}
+      - VITE_FRONTEND_FORGE_API_KEY=${VITE_FRONTEND_FORGE_API_KEY}
+      - VITE_FRONTEND_FORGE_API_URL=${VITE_FRONTEND_FORGE_API_URL}
+      
+      # App Configuration
+      - VITE_APP_TITLE=Trading Llama AI
+      - VITE_APP_LOGO=/logo.svg
+      
+      # Analytics (Optional)
+      - VITE_ANALYTICS_ENDPOINT=${VITE_ANALYTICS_ENDPOINT:-}
+      - VITE_ANALYTICS_WEBSITE_ID=${VITE_ANALYTICS_WEBSITE_ID:-}
+    
+    restart: unless-stopped
+    
+    volumes:
+      # Optional: Mount logs directory
+      - ./logs:/app/logs
+    
+    networks:
+      - trading-network
+    
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/api/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+networks:
+  trading-network:
+    driver: bridge
