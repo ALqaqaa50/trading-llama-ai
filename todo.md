@@ -111,3 +111,15 @@
 - [x] Add safety limits (max trades per day, max loss per day)
 - [x] Implement bot activity logging and monitoring
 - [x] Add real-time bot status display in UI
+
+## Reliability Fixes (Critical)
+- [x] Fix "Failed to fetch" API connection errors
+- [x] Add proper error handling and retry logic
+- [x] Implement real technical indicator calculations (not predicted)
+- [x] Calculate RSI, MACD, Bollinger Bands from actual OHLCV data
+- [ ] Build backtesting engine with historical data (6 months)
+- [ ] Add performance metrics (Sharpe Ratio, Max Drawdown, Win Rate)
+- [ ] Implement interactive candlestick chart with lightweight-charts
+- [ ] Add indicator overlays on chart (RSI, MACD, BB)
+- [ ] Improve AI analysis to use real calculated indicators
+- [ ] Add connection status monitoring and alerts

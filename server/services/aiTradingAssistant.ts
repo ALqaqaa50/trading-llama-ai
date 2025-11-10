@@ -146,7 +146,8 @@ export async function generateTradingInsight(context: MarketContext): Promise<Tr
 **تذكر دائماً**: أنت خبير OKX المعتمد، والبيانات التي تتلقاها هي من المصدر الرسمي المباشر.`;
 
   try {
-    const response = await invokeLLM({
+    const response = await retryWithBackoff(async () => {
+      return await invokeLLM({
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: marketContext },
@@ -183,6 +184,7 @@ export async function generateTradingInsight(context: MarketContext): Promise<Tr
           }
         }
       }
+      });
     });
 
     const content = response.choices[0].message.content;
@@ -294,6 +296,30 @@ function generateRuleBasedInsight(context: MarketContext): TradingInsight {
   };
 }
 
+// Retry helper function with exponential backoff
+async function retryWithBackoff<T>(
+  fn: () => Promise<T>,
+  maxRetries: number = 3,
+  initialDelay: number = 1000
+): Promise<T> {
+  let lastError: Error | undefined;
+  
+  for (let i = 0; i < maxRetries; i++) {
+    try {
+      return await fn();
+    } catch (error) {
+      lastError = error as Error;
+      if (i < maxRetries - 1) {
+        const delay = initialDelay * Math.pow(2, i);
+        console.log(`[AI] Retry ${i + 1}/${maxRetries} after ${delay}ms...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
+    }
+  }
+  
+  throw lastError || new Error('Max retries exceeded');
+}
+
 /**
  * Answer general trading questions using AI
  */
@@ -383,11 +409,13 @@ export async function answerTradingQuestion(
   }
 
   try {
-    const response = await invokeLLM({
+    const response = await retryWithBackoff(async () => {
+      return await invokeLLM({
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: userMessage },
       ],
+      });
     });
 
     const content = response.choices[0].message.content;

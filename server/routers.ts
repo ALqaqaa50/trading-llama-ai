@@ -474,6 +474,23 @@ export const appRouter = router({
         const { getAccountBalance } = await import('./services/okxTradingService');
         return await getAccountBalance(ctx.user.id);
       }),
+
+    // Get real technical indicators (calculated from actual data)
+    getRealIndicators: protectedProcedure
+      .input(z.object({
+        symbol: z.string(),
+        timeframe: z.string().optional(),
+        limit: z.number().int().min(50).max(500).optional(),
+      }))
+      .query(async ({ ctx, input }) => {
+        const { fetchAndCalculateIndicators } = await import('./services/realIndicators');
+        return await fetchAndCalculateIndicators(
+          ctx.user.id,
+          input.symbol,
+          input.timeframe,
+          input.limit
+        );
+      }),
   }),
 
   // Trading Bot Router
