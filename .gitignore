@@ -105,3 +105,23 @@ temp/
 *.db
 *.sqlite
 *.sqlite3
+
+# Trading-specific sensitive data
+*.key
+*.pem
+api_keys.json
+trading_keys/
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+.Python
+venv/
+env/
+
+# Screenshots
+screenshots/
+
+# Storage
+storage/
