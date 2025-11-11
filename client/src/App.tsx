@@ -11,6 +11,7 @@ import ApiKeySetup from "./pages/ApiKeySetup";
 import TradingDashboard from "./pages/TradingDashboard";
 import ApiKeys from "./pages/ApiKeys";
 import Performance from "./pages/Performance";
+import Settings from "./pages/Settings";
 
 function Router() {
   return (
@@ -22,6 +23,7 @@ function Router() {
       <Route path={"/bot"} component={BotControl} />
       <Route path={"/api-keys"} component={ApiKeys} />
       <Route path={"/performance"} component={Performance} />
+      <Route path={"/settings"} component={Settings} />
       <Route path={"/404"} component={NotFound} />
       {/* Final fallback route */}
       <Route component={NotFound} />

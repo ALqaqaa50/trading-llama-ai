@@ -325,7 +325,8 @@ async function retryWithBackoff<T>(
  */
 export async function answerTradingQuestion(
   question: string,
-  marketContext?: MarketContext
+  marketContext?: MarketContext,
+  imageUrl?: string
 ): Promise<string> {
   const currentDate = new Date().toISOString();
   
@@ -486,9 +487,25 @@ export async function answerTradingQuestion(
 
 **تذكر**: أنت خبير OKX المعتمد، ثق تماماً بالبيانات الحية المقدمة من API.`;
 
-  let userMessage = question;
+  let userMessage: any = question;
   if (marketContext) {
     userMessage = `${buildMarketContext(marketContext)}\n\nالسؤال: ${question}`;
+  }
+  
+  // If image URL provided, use multimodal input
+  if (imageUrl) {
+    userMessage = [
+      {
+        type: "text" as const,
+        text: marketContext ? `${buildMarketContext(marketContext)}\n\nالسؤال: ${question}` : question,
+      },
+      {
+        type: "image_url" as const,
+        image_url: {
+          url: imageUrl,
+        },
+      },
+    ];
   }
 
   try {

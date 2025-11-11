@@ -339,6 +339,7 @@ export const appRouter = router({
       .input(z.object({
         message: z.string(),
         symbol: z.string().optional(),
+        imageUrl: z.string().optional(), // Support image analysis
       }))
       .mutation(async ({ ctx, input }) => {
         let marketContext: MarketContext | undefined;
@@ -379,7 +380,7 @@ export const appRouter = router({
           input.message.trim().toLowerCase().includes(keyword.toLowerCase())
         );
 
-        let response = await answerTradingQuestion(input.message, marketContext);
+        let response = await answerTradingQuestion(input.message, marketContext, input.imageUrl);
         
         // If user confirmed, try to extract and execute trade from chat history
         if (isConfirmation) {
@@ -514,6 +515,23 @@ export const appRouter = router({
                         orderId: tradeResult.orderId || '',
                         strategyUsed: 'AI Analysis',
                         aiRecommendation: content.substring(0, 500),
+                      });
+                      
+                      // Send Telegram notification
+                      const { sendTelegramNotification } = await import('./services/telegramNotification');
+                      await sendTelegramNotification({
+                        userId: ctx.user.id,
+                        type: 'trade_open',
+                        symbol,
+                        side,
+                        price: tradeResult.price || entryPrice,
+                        quantity: amount,
+                        message: `🚀 **تم فتح صفقة جديدة!**\n\n` +
+                          `النوع: ${side === 'buy' ? 'شراء 🟢 (LONG)' : 'بيع 🔴 (SHORT)'}\n` +
+                          `الكمية: ${amount.toFixed(6)}\n` +
+                          `Stop Loss: $${stopLoss?.toFixed(2) || 'غير محدد'}\n` +
+                          `Take Profit: $${takeProfit?.toFixed(2) || 'غير محدد'}\n` +
+                          `رقم الأمر: ${tradeResult.orderId}`,
                       });
                       
                       response = `✅ **تم التنفيذ بنجاح على منصة OKX!**\n\n` +
@@ -857,6 +875,72 @@ export const appRouter = router({
         const { getBotStatus } = await import('./services/tradingBot');
         const status = getBotStatus(ctx.user.id);
         return status;
+      }),
+  }),
+  
+  // User Settings (Risk Management)
+  settings: router({
+    getSettings: protectedProcedure
+      .query(async ({ ctx }) => {
+        const { getUserSettings } = await import('./db_settings');
+        return await getUserSettings(ctx.user.id);
+      }),
+    
+    updateSettings: protectedProcedure
+      .input(z.object({
+        riskPercentage: z.string().optional(),
+        maxDailyLoss: z.string().optional(),
+        maxOpenTrades: z.number().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const { upsertUserSettings } = await import('./db_settings');
+        await upsertUserSettings({
+          userId: ctx.user.id,
+          ...input,
+        });
+        return { success: true };
+      }),
+  }),
+  
+  // Telegram Notifications
+  telegram: router({
+    // Get Telegram settings
+    getSettings: protectedProcedure
+      .query(async ({ ctx }) => {
+        const { getTelegramSettings } = await import('./services/telegramNotification');
+        return await getTelegramSettings(ctx.user.id);
+      }),
+    
+    // Update Telegram settings
+    updateSettings: protectedProcedure
+      .input(z.object({
+        chatId: z.string().optional(),
+        enabled: z.number().optional(),
+        notifyOnTradeOpen: z.number().optional(),
+        notifyOnTradeClose: z.number().optional(),
+        notifyOnStopLoss: z.number().optional(),
+        notifyOnTakeProfit: z.number().optional(),
+        notifyOnDailyLossLimit: z.number().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const { updateTelegramSettings } = await import('./services/telegramNotification');
+        await updateTelegramSettings(ctx.user.id, input);
+        return { success: true };
+      }),
+    
+    // Test Telegram notification
+    testNotification: protectedProcedure
+      .mutation(async ({ ctx }) => {
+        const { sendTelegramNotification } = await import('./services/telegramNotification');
+        const result = await sendTelegramNotification({
+          userId: ctx.user.id,
+          type: 'trade_open',
+          symbol: 'BTC/USDT',
+          side: 'buy',
+          price: 50000,
+          message: '🦙 **اختبار إشعارات Trading Llama AI**\n\nهذه رسالة اختبار للتأكد من عمل الإشعارات بشكل صحيح!',
+        });
+        return { success: result };
       }),
   }),
 });

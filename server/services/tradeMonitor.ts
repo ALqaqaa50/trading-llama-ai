@@ -176,6 +176,25 @@ async function checkAndCloseTrade(trade: any) {
         });
 
         console.log(`[Trade Monitor] ✅ Trade ${trade.id} closed successfully - PnL: $${pnl.toFixed(2)} (${pnlPercent}%)`);
+        
+        // Send Telegram notification
+        const { sendTelegramNotification } = await import('./telegramNotification');
+        const notificationType = closeReason === 'Stop Loss Hit' ? 'stop_loss' : 
+                                closeReason === 'Take Profit Hit' ? 'take_profit' : 'trade_close';
+        
+        await sendTelegramNotification({
+          userId: trade.userId,
+          type: notificationType,
+          symbol: trade.symbol,
+          side: trade.side,
+          price: currentPrice,
+          pnl,
+          message: `${closeReason === 'Stop Loss Hit' ? '🛑' : '🎯'} **تم إغلاق الصفقة!**\n\n` +
+            `السبب: ${closeReason === 'Stop Loss Hit' ? 'Stop Loss' : 'Take Profit'}\n` +
+            `سعر الدخول: $${entryPrice.toFixed(2)}\n` +
+            `سعر الخروج: $${currentPrice.toFixed(2)}\n` +
+            `نسبة الربح/الخسارة: ${pnlPercent}%`,
+        });
       } else {
         console.error(`[Trade Monitor] Failed to close trade ${trade.id}:`, closeResult.error);
       }

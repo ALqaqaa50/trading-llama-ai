@@ -129,6 +129,13 @@ export default function TradingDashboard() {
               >
                 📊 إحصائيات الأداء
               </Button>
+              <Button
+                variant="outline"
+                className="border-blue-500/50 text-blue-300 hover:bg-blue-500/20"
+                onClick={() => window.location.href = '/settings'}
+              >
+                ⚙️ الإعدادات
+              </Button>
             <Badge variant="outline" className="bg-green-500/10 text-green-400 border-green-500/50">
               متصل بـ OKX
             </Badge>

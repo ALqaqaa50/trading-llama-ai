@@ -38,6 +38,27 @@ export type UserSettings = typeof userSettings.$inferSelect;
 export type InsertUserSettings = typeof userSettings.$inferInsert;
 
 /**
+ * Telegram notification settings
+ * Stores Telegram bot configuration for each user
+ */
+export const telegramSettings = mysqlTable("telegram_settings", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull().unique(),
+  chatId: varchar("chatId", { length: 255 }), // Telegram Chat ID
+  enabled: int("enabled").default(1).notNull(), // 1 = enabled, 0 = disabled
+  notifyOnTradeOpen: int("notifyOnTradeOpen").default(1).notNull(),
+  notifyOnTradeClose: int("notifyOnTradeClose").default(1).notNull(),
+  notifyOnStopLoss: int("notifyOnStopLoss").default(1).notNull(),
+  notifyOnTakeProfit: int("notifyOnTakeProfit").default(1).notNull(),
+  notifyOnDailyLossLimit: int("notifyOnDailyLossLimit").default(1).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type TelegramSettings = typeof telegramSettings.$inferSelect;
+export type InsertTelegramSettings = typeof telegramSettings.$inferInsert;
+
+/**
  * Trade execution history table
  * Stores all executed trades with full details
  */
