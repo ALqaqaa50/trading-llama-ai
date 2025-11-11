@@ -66,7 +66,7 @@ async function createOKXInstance(userId: number): Promise<any> {
     password: decryptedPassphrase,
     enableRateLimit: true,
     options: {
-      defaultType: 'swap', // Use perpetual swaps by default
+      defaultType: 'spot', // Use spot trading by default
     },
   });
 
