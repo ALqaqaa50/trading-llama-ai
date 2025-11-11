@@ -464,20 +464,26 @@ export const appRouter = router({
                   try {
                     // Check balance before execution
                     const balances = await fetchBalance(apiKey);
+                    console.log('[Trade Execution] All balances from OKX:', balances);
                     const usdtBalance = balances.find(b => b.currency === 'USDT');
+                    console.log('[Trade Execution] USDT balance:', usdtBalance);
                     const availableBalance = usdtBalance ? parseFloat(usdtBalance.total.toString()) : 0;
+                    console.log('[Trade Execution] Available balance:', availableBalance);
                     
                     // Get user risk settings
                     const settings = await getUserSettings(ctx.user.id);
                     const riskPercentage = settings?.riskPercentage ? parseFloat(settings.riskPercentage.toString()) : 2;
                     const requiredAmount = (availableBalance * riskPercentage / 100);
                     
-                    // Check if balance is sufficient
-                    if (availableBalance < 10) {
+                    // Check if balance is sufficient (minimum $1 to allow small trades)
+                    if (availableBalance < 1) {
                       response = `❌ **الرصيد غير كافٍ!**\n\n` +
-                        `الرصيد المتاح: $${availableBalance.toFixed(2)}\n` +
-                        `الحد الأدنى المطلوب: $10.00\n\n` +
-                        `يرجى إضافة رصيد USDT إلى حساب OKX الخاص بك.`;
+                        `الرصيد المقروء من **Trading Account (Spot)**: $${availableBalance.toFixed(2)}\n` +
+                        `الحد الأدنى المطلوب: $1.00\n\n` +
+                        `💡 **الحلول المقترحة:**\n` +
+                        `1️⃣ انقل الرصيد من **Funding Account** إلى **Trading Account** في OKX\n` +
+                        `2️⃣ تأكد من وجود USDT في **Spot Trading Account**\n` +
+                        `3️⃣ تحقق من صحة مفاتيح API وصلاحية "Read"`;
                       
                       // Save chat message
                       await saveChatMessage({
