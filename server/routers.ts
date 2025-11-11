@@ -403,6 +403,7 @@ export const appRouter = router({
                   // Extract trade details from message
                   const { placeOrder } = await import('./services/okxTradingService');
                   const { saveTradeExecution } = await import('./db_trading');
+                  const { getUserSettings } = await import('./db_settings');
                   
                   // Extract symbol (e.g., BTC/USDT)
                   let symbol = 'BTC/USDT';
@@ -460,6 +461,33 @@ export const appRouter = router({
                   }
                   
                   try {
+                    // Check balance before execution
+                    const balances = await fetchBalance(apiKey);
+                    const usdtBalance = balances.find(b => b.currency === 'USDT');
+                    const availableBalance = usdtBalance ? parseFloat(usdtBalance.total.toString()) : 0;
+                    
+                    // Get user risk settings
+                    const settings = await getUserSettings(ctx.user.id);
+                    const riskPercentage = settings?.riskPercentage ? parseFloat(settings.riskPercentage.toString()) : 2;
+                    const requiredAmount = (availableBalance * riskPercentage / 100);
+                    
+                    // Check if balance is sufficient
+                    if (availableBalance < 10) {
+                      response = `❌ **الرصيد غير كافٍ!**\n\n` +
+                        `الرصيد المتاح: $${availableBalance.toFixed(2)}\n` +
+                        `الحد الأدنى المطلوب: $10.00\n\n` +
+                        `يرجى إضافة رصيد USDT إلى حساب OKX الخاص بك.`;
+                      
+                      // Save chat message
+                      await saveChatMessage({
+                        userId: ctx.user.id,
+                        role: 'assistant',
+                        content: response,
+                      });
+                      
+                      return { response };
+                    }
+                    
                     // Execute the trade on OKX
                     const tradeResult = await placeOrder(ctx.user.id, {
                       symbol,
@@ -488,16 +516,40 @@ export const appRouter = router({
                         aiRecommendation: content.substring(0, 500),
                       });
                       
-                      response = `✅ **تم التنفيذ بنجاح على OKX!**\n\n` +
+                      response = `✅ **تم التنفيذ بنجاح على منصة OKX!**\n\n` +
                         `📊 **تفاصيل الصفقة:**\n` +
-                        `- الرمز: ${symbol}\n` +
-                        `- النوع: ${side === 'buy' ? 'شراء (LONG)' : 'بيع (SHORT)'}\n` +
-                        `- الكمية: ${amount.toFixed(6)}\n` +
-                        `- السعر: $${(tradeResult.price || entryPrice || 0).toFixed(2)}\n` +
-                        `- رقم الأمر: ${tradeResult.orderId}\n\n` +
-                        `يمكنك متابعة الصفقة في صفحة "صفقاتي" 📊`;
+                        `━━━━━━━━━━━━━━━━━━━\n` +
+                        `🔹 الرمز: **${symbol}**\n` +
+                        `🔹 النوع: **${side === 'buy' ? 'شراء 🟢 (LONG)' : 'بيع 🔴 (SHORT)'}**\n` +
+                        `🔹 الكمية: **${amount.toFixed(6)}**\n` +
+                        `🔹 السعر: **$${(tradeResult.price || entryPrice || 0).toFixed(2)}**\n` +
+                        `🔹 Stop Loss: **$${stopLoss?.toFixed(2) || 'غير محدد'}**\n` +
+                        `🔹 Take Profit: **$${takeProfit?.toFixed(2) || 'غير محدد'}**\n` +
+                        `🔹 رقم الأمر: \`${tradeResult.orderId}\`\n` +
+                        `━━━━━━━━━━━━━━━━━━━\n\n` +
+                        `🤖 **المراقبة التلقائية مفعّلة!**\n` +
+                        `سيتم إغلاق الصفقة تلقائياً عند الوصول لـ Stop Loss أو Take Profit.\n\n` +
+                        `📈 يمكنك متابعة جميع صفقاتك في صفحة "📊 صفقاتي"`;
                     } else {
-                      response = `❌ **فشل التنفيذ**\n\n${tradeResult.error || 'حدث خطأ غير معروف'}`;
+                      // Don't save failed trades to database
+                      const errorMessage = tradeResult.error || 'حدث خطأ غير معروف';
+                      
+                      // Parse OKX error for better user message
+                      let userFriendlyError = errorMessage;
+                      if (errorMessage.includes('insufficient')) {
+                        userFriendlyError = `الرصيد المتاح غير كافٍ لتنفيذ هذه الصفقة.\n\nالرصيد الحالي: $${availableBalance.toFixed(2)}\nالمبلغ المطلوب: ~$${requiredAmount.toFixed(2)}`;
+                      } else if (errorMessage.includes('minimum')) {
+                        userFriendlyError = 'الكمية أقل من الحد الأدنى المسموح به في المنصة.';
+                      } else if (errorMessage.includes('api')) {
+                        userFriendlyError = 'خطأ في الاتصال بمنصة OKX. تأكد من صحة مفاتيح API.';
+                      }
+                      
+                      response = `❌ **فشل التنفيذ على OKX**\n\n` +
+                        `📋 **السبب:** ${userFriendlyError}\n\n` +
+                        `💡 **الحلول المقترحة:**\n` +
+                        `1. تحقق من رصيد USDT في حسابك على OKX\n` +
+                        `2. تأكد من صحة مفاتيح API في صفحة "مفاتيح API"\n` +
+                        `3. تحقق من تفعيل صلاحيات التداول (Trading) في مفاتيح API`;
                     }
                   } catch (execError: any) {
                     console.error('[Trade Execution Error]:', execError);

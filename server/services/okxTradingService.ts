@@ -144,14 +144,44 @@ export async function placeOrder(userId: number, order: TradeOrder): Promise<Tra
       );
     }
 
+    // Verify the order was actually placed successfully
+    if (!result || !result.id) {
+      return {
+        success: false,
+        symbol: order.symbol,
+        side: order.side,
+        amount: order.amount,
+        status: 'failed',
+        timestamp: new Date(),
+        error: 'Order was not created - no order ID returned from exchange',
+      };
+    }
+
+    // Check if order status indicates success
+    const successStatuses = ['closed', 'filled', 'open'];
+    const orderStatus = result.status || 'unknown';
+    
+    if (!successStatuses.includes(orderStatus.toLowerCase())) {
+      return {
+        success: false,
+        orderId: result.id,
+        symbol: order.symbol,
+        side: order.side,
+        amount: order.amount,
+        status: orderStatus,
+        timestamp: new Date(),
+        error: `Order failed with status: ${orderStatus}`,
+      };
+    }
+
     return {
       success: true,
-      orderId: result?.id,
+      orderId: result.id,
       symbol: order.symbol,
       side: order.side,
       amount: order.amount,
-      price: result?.price,
-      status: result?.status || 'unknown',
+      price: result.price || result.average,
+      status: orderStatus,
       timestamp: new Date(),
     };
   } catch (error: any) {
