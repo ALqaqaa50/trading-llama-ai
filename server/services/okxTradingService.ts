@@ -162,6 +162,13 @@ export async function placeOrder(userId: number, order: TradeOrder): Promise<Tra
     const orderStatus = result.status || 'unknown';
     
     if (!successStatuses.includes(orderStatus.toLowerCase())) {
+      // Provide more helpful error message for common issues
+      let errorMessage = `Order failed with status: ${orderStatus}`;
+      
+      if (orderStatus === 'unknown') {
+        errorMessage = 'Order failed - API key may not have "Trade" permission. Please enable Trading permission in your OKX API settings.';
+      }
+      
       return {
         success: false,
         orderId: result.id,
@@ -170,7 +177,7 @@ export async function placeOrder(userId: number, order: TradeOrder): Promise<Tra
         amount: order.amount,
         status: orderStatus,
         timestamp: new Date(),
-        error: `Order failed with status: ${orderStatus}`,
+        error: errorMessage,
       };
     }
 

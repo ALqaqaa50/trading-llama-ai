@@ -566,6 +566,8 @@ export const appRouter = router({
                         userFriendlyError = 'الكمية أقل من الحد الأدنى المسموح به في المنصة.';
                       } else if (errorMessage.includes('api')) {
                         userFriendlyError = 'خطأ في الاتصال بمنصة OKX. تأكد من صحة مفاتيح API.';
+                      } else if (errorMessage.includes('Trade') || errorMessage.includes('permission')) {
+                        userFriendlyError = 'مفاتيح API لا تمتلك صلاحية التداول!\n\n🔑 **الحل:**\n1. افتح OKX → Profile → API\n2. اضغط على مفتاحك (Trading bot 123)\n3. Edit Permissions → فعّل "Trade" ✅\n4. جرّب التنفيذ مرة أخرى';
                       }
                       
                       response = `❌ **فشل التنفيذ على OKX**\n\n` +
