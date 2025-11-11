@@ -137,25 +137,31 @@ export async function fetchBalance(apiKey: ApiKey): Promise<BalanceData[]> {
   try {
     const exchange = createOKXInstance(apiKey);
     
-    // OKX has multiple account types:
-    // - 'funding': Funding Account (where deposits go)
-    // - 'spot': Spot Trading Account
-    // - 'swap': Futures/Perpetual Swap Account
-    // - 'future': Futures Account
-    // - 'margin': Margin Trading Account
+    // OKX has two account modes:
+    // 1. Classic Account: separate accounts (funding, spot, swap, etc.)
+    // 2. Unified Account: all balances in one unified trading account
     
-    const accountTypes = ['funding', 'spot', 'swap', 'future', 'margin'];
+    // Strategy: Try all possible account types and aggregate
+    const accountTypes = [
+      'trading',  // Unified Trading Account (new OKX system)
+      'spot',     // Spot Trading Account
+      'funding',  // Funding Account (deposits/withdrawals)
+      'swap',     // Futures/Perpetual Swap
+      'future',   // Futures
+      'margin'    // Margin Trading
+    ];
+    
     const aggregatedBalances: { [currency: string]: { free: number; used: number; total: number } } = {};
     
-    console.log('[OKX] Fetching balances from all account types...');
+    console.log('[OKX] Fetching balances from all account types (including Unified Account)...');
     
     // Fetch balance from each account type
     for (const accountType of accountTypes) {
       try {
-        console.log(`[OKX] Fetching balance from ${accountType} account...`);
+        console.log(`[OKX] Attempting to fetch balance from ${accountType} account...`);
         const balance = await exchange.fetchBalance({ type: accountType });
         
-        console.log(`[OKX] ${accountType} account balance:`, JSON.stringify(balance.total, null, 2));
+        console.log(`[OKX] ${accountType} account raw response:`, JSON.stringify(balance, null, 2).substring(0, 500));
         
         // Aggregate balances from this account type
         if (balance.total) {
@@ -165,6 +171,8 @@ export async function fetchBalance(apiKey: ApiKey): Promise<BalanceData[]> {
             const used = Number(balance.used?.[currency]) || 0;
             
             if (total > 0) {
+              console.log(`[OKX] Found ${total} ${currency} in ${accountType} account (free: ${free}, used: ${used})`);
+              
               if (!aggregatedBalances[currency]) {
                 aggregatedBalances[currency] = { free: 0, used: 0, total: 0 };
               }
@@ -177,7 +185,7 @@ export async function fetchBalance(apiKey: ApiKey): Promise<BalanceData[]> {
         }
       } catch (error: any) {
         // Some account types might not be accessible or enabled
-        console.log(`[OKX] Could not fetch ${accountType} balance (might not be enabled):`, error.message);
+        console.log(`[OKX] Could not fetch ${accountType} balance:`, error.message);
       }
     }
     
@@ -189,7 +197,14 @@ export async function fetchBalance(apiKey: ApiKey): Promise<BalanceData[]> {
       total: amounts.total,
     }));
     
-    console.log('[OKX] Total aggregated balances from ALL accounts:', balances);
+    console.log('[OKX] ✅ Total aggregated balances from ALL accounts:', balances);
+    
+    if (balances.length === 0) {
+      console.warn('[OKX] ⚠️ No balances found in any account type! This might indicate:');
+      console.warn('[OKX]    1. Account is empty');
+      console.warn('[OKX]    2. API keys lack "Read" permission');
+      console.warn('[OKX]    3. Account type mismatch (Unified vs Classic)');
+    }
     
     return balances;
   } catch (error) {
