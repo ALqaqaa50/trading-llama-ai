@@ -431,8 +431,33 @@ export const appRouter = router({
                                  content.match(/Take Profit[:\s*]+\$?([\d,]+\.?\d*)/i);
                   const takeProfit = tpMatch ? parseFloat(tpMatch[1].replace(/,/g, '')) : undefined;
                   
-                  // Default amount: $100 worth of crypto
-                  const amount = 100 / (entryPrice || 1);
+                  // Calculate position size based on risk management
+                  const { calculatePositionSize, isDailyLossLimitExceeded } = await import('./db_settings');
+                  const { fetchBalance } = await import('./services/okxService');
+                  
+                  // Get account balance
+                  const balanceData = await fetchBalance(apiKey);
+                  const usdtBalance = balanceData.find(b => b.currency === 'USDT');
+                  const accountBalance = usdtBalance?.total || 1000; // Fallback to $1000 if balance unavailable
+                  
+                  // Check daily loss limit
+                  const { getTodayPnL } = await import('./db_trading');
+                  const todayPnL = await getTodayPnL(ctx.user.id);
+                  const dailyLossExceeded = await isDailyLossLimitExceeded(ctx.user.id, todayPnL);
+                  
+                  if (dailyLossExceeded) {
+                    response = `⚠️ **تم إيقاف التداول**\n\nتم الوصول للحد الأقصى للخسارة اليومية. يرجى المحاولة غداً.`;
+                    return;
+                  }
+                  
+                  // Calculate position size based on risk percentage and stop loss
+                  let amount;
+                  if (stopLoss && entryPrice) {
+                    amount = await calculatePositionSize(ctx.user.id, accountBalance, entryPrice, stopLoss);
+                  } else {
+                    // Fallback: 2% of balance if no stop loss
+                    amount = (accountBalance * 0.02) / (entryPrice || 1);
+                  }
                   
                   try {
                     // Execute the trade on OKX
@@ -633,6 +658,74 @@ export const appRouter = router({
       .query(async ({ ctx }) => {
         const { getAccountBalance } = await import('./services/okxTradingService');
         return await getAccountBalance(ctx.user.id);
+      }),
+
+    // Get performance statistics
+    getPerformanceStats: protectedProcedure
+      .input(z.object({
+        timeRange: z.enum(['week', 'month', 'all']).optional(),
+      }))
+      .query(async ({ ctx, input }) => {
+        const { getTradeExecutionsByUserId } = await import('./db_trading');
+        const trades = await getTradeExecutionsByUserId(ctx.user.id, 1000);
+        
+        // Filter by time range
+        let filteredTrades = trades;
+        if (input.timeRange && input.timeRange !== 'all') {
+          const now = new Date();
+          const cutoff = new Date();
+          if (input.timeRange === 'week') {
+            cutoff.setDate(now.getDate() - 7);
+          } else if (input.timeRange === 'month') {
+            cutoff.setMonth(now.getMonth() - 1);
+          }
+          filteredTrades = trades.filter(t => new Date(t.createdAt) >= cutoff);
+        }
+        
+        // Calculate statistics
+        const totalTrades = filteredTrades.length;
+        const closedTrades = filteredTrades.filter(t => t.pnl !== null);
+        
+        let totalPnL = 0;
+        let winningTrades = 0;
+        let losingTrades = 0;
+        let totalWinAmount = 0;
+        let totalLossAmount = 0;
+        let bestTrade = 0;
+        let worstTrade = 0;
+        
+        for (const trade of closedTrades) {
+          const pnl = parseFloat(trade.pnl || '0');
+          totalPnL += pnl;
+          
+          if (pnl > 0) {
+            winningTrades++;
+            totalWinAmount += pnl;
+            if (pnl > bestTrade) bestTrade = pnl;
+          } else if (pnl < 0) {
+            losingTrades++;
+            totalLossAmount += pnl;
+            if (pnl < worstTrade) worstTrade = pnl;
+          }
+        }
+        
+        const winRate = closedTrades.length > 0 ? (winningTrades / closedTrades.length) * 100 : 0;
+        const avgWin = winningTrades > 0 ? totalWinAmount / winningTrades : 0;
+        const avgLoss = losingTrades > 0 ? totalLossAmount / losingTrades : 0;
+        const profitFactor = Math.abs(totalLossAmount) > 0 ? totalWinAmount / Math.abs(totalLossAmount) : 0;
+        
+        return {
+          totalPnL,
+          winRate,
+          totalTrades,
+          winningTrades,
+          losingTrades,
+          avgWin,
+          avgLoss,
+          bestTrade,
+          worstTrade,
+          profitFactor,
+        };
       }),
 
     // Get real technical indicators (calculated from actual data)

@@ -20,6 +20,24 @@ export type User = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;
 
 /**
+ * User trading settings and risk management preferences
+ */
+export const userSettings = mysqlTable("user_settings", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull().unique(),
+  riskPercentage: varchar("riskPercentage", { length: 10 }).default("2").notNull(), // % of capital per trade
+  maxDailyLoss: varchar("maxDailyLoss", { length: 50 }), // Max daily loss in USD
+  maxOpenTrades: int("maxOpenTrades").default(3).notNull(),
+  defaultLeverage: int("defaultLeverage").default(1).notNull(),
+  autoCloseEnabled: int("autoCloseEnabled").default(1).notNull(), // 1 = enabled, 0 = disabled
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type UserSettings = typeof userSettings.$inferSelect;
+export type InsertUserSettings = typeof userSettings.$inferInsert;
+
+/**
  * Trade execution history table
  * Stores all executed trades with full details
  */

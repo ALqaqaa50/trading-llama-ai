@@ -47,7 +47,7 @@ export default function TradingDashboard() {
     onSuccess: (data) => {
       const aiMessage: Message = {
         role: "assistant",
-        content: data.response,
+        content: data?.response || 'حدث خطأ غير متوقع',
         timestamp: new Date(),
       };
       setMessages((prev) => [...prev, aiMessage]);
@@ -115,13 +115,20 @@ export default function TradingDashboard() {
             >
               📊 صفقاتي
             </Button>
-            <Button
-              variant="outline"
-              className="border-green-500 text-green-500 hover:bg-green-500/10"
-              onClick={() => window.location.href = '/api-keys'}
-            >
-              🔑 مفاتيح API
-            </Button>
+              <Button
+                variant="outline"
+                className="border-purple-500/50 text-purple-300 hover:bg-purple-500/20"
+                onClick={() => window.location.href = '/api-keys'}
+              >
+                🔑 مفاتيح API
+              </Button>
+              <Button
+                variant="outline"
+                className="border-green-500/50 text-green-300 hover:bg-green-500/20"
+                onClick={() => window.location.href = '/performance'}
+              >
+                📊 إحصائيات الأداء
+              </Button>
             <Badge variant="outline" className="bg-green-500/10 text-green-400 border-green-500/50">
               متصل بـ OKX
             </Badge>

@@ -1,4 +1,4 @@
-import { eq, desc, and } from "drizzle-orm";
+import { and, desc, eq, gte } from "drizzle-orm";
 import { getDb } from "./db";
 import { tradeExecutions, InsertTradeExecution } from "../drizzle/schema";
 
@@ -74,6 +74,44 @@ export async function getTradeExecutionsByUserId(userId: number, limit: number =
 /**
  * Get open trades (not closed yet)
  */
+/**
+ * Get today's total PnL for a user
+ */
+export async function getTodayPnL(userId: number): Promise<number> {
+  const db = await getDb();
+  if (!db) {
+    console.warn("[Database] Cannot get today PnL: database not available");
+    return 0;
+  }
+
+  try {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const trades = await db
+      .select()
+      .from(tradeExecutions)
+      .where(
+        and(
+          eq(tradeExecutions.userId, userId),
+          gte(tradeExecutions.createdAt, today)
+        )
+      );
+
+    let totalPnL = 0;
+    for (const trade of trades) {
+      if (trade.pnl) {
+        totalPnL += parseFloat(trade.pnl);
+      }
+    }
+
+    return totalPnL;
+  } catch (error) {
+    console.error("[Database] Failed to get today PnL:", error);
+    return 0;
+  }
+}
+
 export async function getOpenTrades(userId: number) {
   const db = await getDb();
   if (!db) {

@@ -30,6 +30,15 @@ async function findAvailablePort(startPort: number = 3000): Promise<number> {
 async function startServer() {
   const app = express();
   const server = createServer(app);
+  
+  // Start trade monitor service
+  try {
+    const { startTradeMonitor } = await import('../services/tradeMonitor');
+    startTradeMonitor();
+    console.log('[Server] Trade monitor started');
+  } catch (error) {
+    console.error('[Server] Failed to start trade monitor:', error);
+  }
   // Configure body parser with larger size limit for file uploads
   app.use(express.json({ limit: "50mb" }));
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
