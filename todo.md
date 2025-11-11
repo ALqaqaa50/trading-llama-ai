@@ -131,3 +131,15 @@
 - [ ] Create GitHub repository
 - [ ] Push all code to GitHub
 - [ ] Verify repository is accessible
+
+## 🔐 Railway Deployment - OAuth Fix
+- [x] Fix VITE_OAUTH_PORTAL_URL in Railway environment variables
+- [x] Railway deployment successful but OAuth domain registration blocked
+- [x] Decision: Use Manus Deployment instead (OAuth works automatically)
+
+## 🚀 Manus Production Deployment
+- [ ] Create final checkpoint
+- [ ] Publish project to Manus platform
+- [ ] Get production domain (tradingai-*.manus.space)
+- [ ] Test OAuth authentication
+- [ ] Verify all features work in production
