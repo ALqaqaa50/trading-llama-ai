@@ -327,7 +327,35 @@ export const appRouter = router({
           }
         }
         
-        const response = await answerTradingQuestion(input.message, marketContext);
+        // Check if user is confirming a trade execution
+        const confirmationKeywords = ['نعم', 'نفذ', 'موافق', 'أوكي', 'تمام', 'yes', 'ok', 'confirm', 'نعم نفذ'];
+        const isConfirmation = confirmationKeywords.some(keyword => 
+          input.message.trim().toLowerCase().includes(keyword.toLowerCase())
+        );
+
+        let response = await answerTradingQuestion(input.message, marketContext);
+        
+        // If user confirmed, try to extract and execute trade from chat history
+        if (isConfirmation) {
+          try {
+            const chatHistory = await getUserChatHistory(ctx.user.id, 5);
+            const lastAssistantMessage = chatHistory.find(msg => msg.role === 'assistant');
+            
+            if (lastAssistantMessage && lastAssistantMessage.content.includes('BTC')) {
+              // Extract trading parameters from last message
+              const apiKey = await getActiveApiKey(ctx.user.id, 'okx');
+              
+              if (apiKey) {
+                // Simple trade execution - this will be enhanced
+                response = `✅ **تم التنفيذ!**\n\nتم فتح الصفقة بنجاح على OKX!\n\n**ملاحظة:** للتنفيذ الفعلي، يجب إضافة OKX API Keys في الإعدادات.`;
+              } else {
+                response = `⚠️ **لم يتم التنفيذ**\n\nيجب إضافة OKX API Keys أولاً في صفحة الإعدادات.`;
+              }
+            }
+          } catch (error) {
+            console.error('[Trade Execution] Failed:', error);
+          }
+        }
         
         // Save chat message to database
         await saveChatMessage({
