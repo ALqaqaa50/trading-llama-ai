@@ -457,8 +457,11 @@ export const appRouter = router({
                   if (stopLoss && entryPrice) {
                     amount = await calculatePositionSize(ctx.user.id, accountBalance, entryPrice, stopLoss);
                   } else {
-                    // Fallback: 2% of balance if no stop loss
-                    amount = (accountBalance * 0.02) / (entryPrice || 1);
+                    // For small balances (<$5), use 70% to ensure minimum order size is met
+                    // For larger balances, use 2% for proper risk management
+                    const riskPercentage = accountBalance < 5 ? 0.70 : 0.02;
+                    amount = (accountBalance * riskPercentage) / (entryPrice || 1);
+                    console.log(`[Trade Execution] Calculated amount: ${amount} (balance: $${accountBalance}, risk: ${riskPercentage * 100}%)`);
                   }
                   
                   try {
@@ -487,12 +490,12 @@ export const appRouter = router({
                     const riskPercentage = settings?.riskPercentage ? parseFloat(settings.riskPercentage.toString()) : 2;
                     const requiredAmount = (availableBalance * riskPercentage / 100);
                     
-                    // Check if balance is sufficient (minimum $1 to allow small trades)
-                    if (availableBalance < 1) {
+                    // Check if balance is sufficient (minimum $0.80 to allow small trades + fees)
+                    if (availableBalance < 0.80) {
                       response = `❌ **الرصيد غير كافٍ!**\n\n` +
                         `الرصيد الإجمالي المقروء من **جميع حسابات OKX**: $${availableBalance.toFixed(2)}\n` +
                         `(Funding + Spot + Futures + Margin)\n\n` +
-                        `الحد الأدنى المطلوب: $1.00\n\n` +
+                        `الحد الأدنى المطلوب: $0.80 (لتغطية الصفقة + رسوم التداول)\n\n` +
                         `💡 **الحلول المقترحة:**\n` +
                         `1️⃣ أضف رصيد USDT إلى حسابك في OKX\n` +
                         `2️⃣ تأكد من وجود رصيد في أي من الحسابات (Funding/Spot/Futures)\n` +
