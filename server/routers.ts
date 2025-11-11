@@ -413,10 +413,19 @@ export const appRouter = router({
                     symbol = symbolMatch[0];
                   }
                   
-                  // Extract side (buy/sell)
-                  const isBuy = content.includes('شراء') || content.includes('LONG') || content.includes('🟢');
-                  const isSell = content.includes('بيع') || content.includes('SHORT') || content.includes('🔴');
-                  const side = isBuy ? 'buy' : 'sell';
+                  // Extract side (buy/sell) from AI recommendation
+                  let side: 'buy' | 'sell' = 'buy';
+                  
+                  // Try to extract from JSON recommendation first
+                  const recommendationMatch = content.match(/"recommendation"\s*:\s*"(buy|sell|hold)"/i);
+                  if (recommendationMatch && recommendationMatch[1] !== 'hold') {
+                    side = recommendationMatch[1] as 'buy' | 'sell';
+                  } else {
+                    // Fallback: extract from keywords
+                    const isBuy = content.includes('شراء') || content.includes('LONG') || content.includes('🟢') || content.includes('صعود');
+                    const isSell = content.includes('بيع') || content.includes('SHORT') || content.includes('🔴') || content.includes('هبوط');
+                    side = isSell ? 'sell' : 'buy';
+                  }
                   
                   // Extract entry price
                   const entryMatch = content.match(/سعر الدخول[:\s*]+\$?([\d,]+\.?\d*)/i) || 
@@ -435,12 +444,20 @@ export const appRouter = router({
                   
                   // Calculate position size based on risk management
                   const { calculatePositionSize, isDailyLossLimitExceeded } = await import('./db_settings');
-                  const { fetchBalance } = await import('./services/okxService');
+                  const { fetchBalance, fetchTicker } = await import('./services/okxService');
                   
                   // Get account balance
                   const balanceData = await fetchBalance(apiKey);
                   const usdtBalance = balanceData.find(b => b.currency === 'USDT');
                   const accountBalance = usdtBalance?.total || 1000; // Fallback to $1000 if balance unavailable
+                  
+                  // Get current market price if entryPrice not provided
+                  let currentPrice = entryPrice;
+                  if (!currentPrice) {
+                    const ticker = await fetchTicker(apiKey, symbol);
+                    currentPrice = ticker.last;
+                    console.log(`[Trade Execution] Using current market price: $${currentPrice}`);
+                  }
                   
                   // Check daily loss limit
                   const { getTodayPnL } = await import('./db_trading');
@@ -454,14 +471,15 @@ export const appRouter = router({
                   
                   // Calculate position size based on risk percentage and stop loss
                   let amount;
-                  if (stopLoss && entryPrice) {
-                    amount = await calculatePositionSize(ctx.user.id, accountBalance, entryPrice, stopLoss);
+                  if (stopLoss && currentPrice) {
+                    amount = await calculatePositionSize(ctx.user.id, accountBalance, currentPrice, stopLoss);
                   } else {
                     // For small balances (<$5), use 70% to ensure minimum order size is met
                     // For larger balances, use 2% for proper risk management
                     const riskPercentage = accountBalance < 5 ? 0.70 : 0.02;
-                    amount = (accountBalance * riskPercentage) / (entryPrice || 1);
-                    console.log(`[Trade Execution] Calculated amount: ${amount} (balance: $${accountBalance}, risk: ${riskPercentage * 100}%)`);
+                    const usdValue = accountBalance * riskPercentage;
+                    amount = usdValue / currentPrice;
+                    console.log(`[Trade Execution] Calculated amount: ${amount} ${symbol.split('/')[0]} (USD value: $${usdValue.toFixed(2)}, price: $${currentPrice}, balance: $${accountBalance})`);
                   }
                   
                   try {
