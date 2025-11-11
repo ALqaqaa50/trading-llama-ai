@@ -384,22 +384,108 @@ export const appRouter = router({
         // If user confirmed, try to extract and execute trade from chat history
         if (isConfirmation) {
           try {
-            const chatHistory = await getUserChatHistory(ctx.user.id, 5);
+            const chatHistory = await getUserChatHistory(ctx.user.id, 10);
             const lastAssistantMessage = chatHistory.find(msg => msg.role === 'assistant');
             
-            if (lastAssistantMessage && lastAssistantMessage.content.includes('BTC')) {
-              // Extract trading parameters from last message
-              const apiKey = await getActiveApiKey(ctx.user.id, 'okx');
+            if (lastAssistantMessage) {
+              // Extract trading parameters from AI's last message
+              const content = lastAssistantMessage.content;
               
-              if (apiKey) {
-                // Simple trade execution - this will be enhanced
-                response = `✅ **تم التنفيذ!**\n\nتم فتح الصفقة بنجاح على OKX!\n\n**ملاحظة:** للتنفيذ الفعلي، يجب إضافة OKX API Keys في الإعدادات.`;
+              // Check if message contains a trading signal
+              const hasSignal = content.includes('سعر الدخول') || content.includes('وقف الخسارة') || content.includes('Entry') || content.includes('Stop Loss');
+              
+              if (hasSignal) {
+                const apiKey = await getActiveApiKey(ctx.user.id, 'okx');
+                
+                if (!apiKey) {
+                  response = `⚠️ **لم يتم التنفيذ**\n\nيجب إضافة OKX API Keys أولاً في صفحة "مفاتيح API".`;
+                } else {
+                  // Extract trade details from message
+                  const { placeOrder } = await import('./services/okxTradingService');
+                  const { saveTradeExecution } = await import('./db_trading');
+                  
+                  // Extract symbol (e.g., BTC/USDT)
+                  let symbol = 'BTC/USDT';
+                  const symbolMatch = content.match(/([A-Z]{3,10})\/([A-Z]{3,10})/i);
+                  if (symbolMatch) {
+                    symbol = symbolMatch[0];
+                  }
+                  
+                  // Extract side (buy/sell)
+                  const isBuy = content.includes('شراء') || content.includes('LONG') || content.includes('🟢');
+                  const isSell = content.includes('بيع') || content.includes('SHORT') || content.includes('🔴');
+                  const side = isBuy ? 'buy' : 'sell';
+                  
+                  // Extract entry price
+                  const entryMatch = content.match(/سعر الدخول[:\s*]+\$?([\d,]+\.?\d*)/i) || 
+                                   content.match(/Entry[:\s*]+\$?([\d,]+\.?\d*)/i);
+                  const entryPrice = entryMatch ? parseFloat(entryMatch[1].replace(/,/g, '')) : undefined;
+                  
+                  // Extract stop loss
+                  const slMatch = content.match(/وقف الخسارة[:\s*]+\$?([\d,]+\.?\d*)/i) ||
+                                 content.match(/Stop Loss[:\s*]+\$?([\d,]+\.?\d*)/i);
+                  const stopLoss = slMatch ? parseFloat(slMatch[1].replace(/,/g, '')) : undefined;
+                  
+                  // Extract take profit
+                  const tpMatch = content.match(/جني الأرباح 1[:\s*]+\$?([\d,]+\.?\d*)/i) ||
+                                 content.match(/Take Profit[:\s*]+\$?([\d,]+\.?\d*)/i);
+                  const takeProfit = tpMatch ? parseFloat(tpMatch[1].replace(/,/g, '')) : undefined;
+                  
+                  // Default amount: $100 worth of crypto
+                  const amount = 100 / (entryPrice || 1);
+                  
+                  try {
+                    // Execute the trade on OKX
+                    const tradeResult = await placeOrder(ctx.user.id, {
+                      symbol,
+                      side,
+                      type: 'market',
+                      amount,
+                      price: entryPrice,
+                      stopLoss,
+                      takeProfit,
+                    });
+                    
+                    if (tradeResult.success) {
+                      // Save to database
+                      await saveTradeExecution({
+                        userId: ctx.user.id,
+                        symbol,
+                        side,
+                        type: 'market',
+                        amount: amount.toString(),
+                        price: (tradeResult.price || entryPrice || 0).toString(),
+                        stopLoss: stopLoss?.toString(),
+                        takeProfit: takeProfit?.toString(),
+                        status: 'filled',
+                        orderId: tradeResult.orderId || '',
+                        strategyUsed: 'AI Analysis',
+                        aiRecommendation: content.substring(0, 500),
+                      });
+                      
+                      response = `✅ **تم التنفيذ بنجاح على OKX!**\n\n` +
+                        `📊 **تفاصيل الصفقة:**\n` +
+                        `- الرمز: ${symbol}\n` +
+                        `- النوع: ${side === 'buy' ? 'شراء (LONG)' : 'بيع (SHORT)'}\n` +
+                        `- الكمية: ${amount.toFixed(6)}\n` +
+                        `- السعر: $${(tradeResult.price || entryPrice || 0).toFixed(2)}\n` +
+                        `- رقم الأمر: ${tradeResult.orderId}\n\n` +
+                        `يمكنك متابعة الصفقة في صفحة "صفقاتي" 📊`;
+                    } else {
+                      response = `❌ **فشل التنفيذ**\n\n${tradeResult.error || 'حدث خطأ غير معروف'}`;
+                    }
+                  } catch (execError: any) {
+                    console.error('[Trade Execution Error]:', execError);
+                    response = `❌ **فشل التنفيذ**\n\nخطأ: ${execError.message}\n\nتأكد من صحة مفاتيح API والرصيد المتاح.`;
+                  }
+                }
               } else {
-                response = `⚠️ **لم يتم التنفيذ**\n\nيجب إضافة OKX API Keys أولاً في صفحة الإعدادات.`;
+                response = `⚠️ لم أجد إشارة تداول في الرسالة السابقة. يرجى طلب تحليل أولاً.`;
               }
             }
-          } catch (error) {
+          } catch (error: any) {
             console.error('[Trade Execution] Failed:', error);
+            response = `❌ حدث خطأ: ${error.message}`;
           }
         }
         
