@@ -136,22 +136,39 @@ export async function fetchTicker(apiKey: ApiKey, symbol: string): Promise<Ticke
 export async function fetchBalance(apiKey: ApiKey): Promise<BalanceData[]> {
   try {
     const exchange = createOKXInstance(apiKey);
-    const balance = await exchange.fetchBalance();
+    
+    // OKX has different account types: spot, funding, trading
+    // We need to fetch balance from the trading account specifically
+    const balance = await exchange.fetchBalance({ type: 'spot' });
+    
+    console.log('[OKX] Raw balance response:', JSON.stringify(balance, null, 2));
     
     const balances: BalanceData[] = [];
-    for (const [currency, data] of Object.entries(balance)) {
-      if (currency !== 'info' && currency !== 'free' && currency !== 'used' && currency !== 'total') {
-        const balanceInfo = data as { free: number; used: number; total: number };
-        if (balanceInfo.total > 0) {
+    
+    // The balance object structure from ccxt:
+    // balance.free = { BTC: 0.001, USDT: 99.75, ... }
+    // balance.used = { BTC: 0, USDT: 0, ... }
+    // balance.total = { BTC: 0.001, USDT: 99.75, ... }
+    
+    if (balance.total) {
+      for (const [currency, totalAmount] of Object.entries(balance.total)) {
+        const total = Number(totalAmount) || 0;
+        const free = Number(balance.free?.[currency]) || 0;
+        const used = Number(balance.used?.[currency]) || 0;
+        
+        // Only include currencies with non-zero balance
+        if (total > 0) {
           balances.push({
             currency,
-            free: balanceInfo.free,
-            used: balanceInfo.used,
-            total: balanceInfo.total,
+            free,
+            used,
+            total,
           });
         }
       }
     }
+    
+    console.log('[OKX] Parsed balances:', balances);
     
     return balances;
   } catch (error) {
