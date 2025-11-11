@@ -109,6 +109,52 @@ export const appRouter = router({
         await deactivateApiKey(input.id);
         return { success: true };
       }),
+
+    // Update an existing API key
+    update: protectedProcedure
+      .input(z.object({
+        id: z.number(),
+        apiKey: z.string(),
+        secretKey: z.string(),
+        passphrase: z.string().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const encrypted = encryptApiKeys(input.apiKey, input.secretKey, input.passphrase);
+        
+        const db = await import('./db').then(m => m.getDb());
+        if (!db) throw new Error('Database not available');
+        
+        const { apiKeys } = await import('../drizzle/schema');
+        const { eq } = await import('drizzle-orm');
+        
+        await db.update(apiKeys)
+          .set({
+            apiKey: encrypted.apiKey,
+            secretKey: encrypted.secretKey,
+            passphrase: encrypted.passphrase,
+            updatedAt: new Date(),
+          })
+          .where(eq(apiKeys.id, input.id));
+
+        return { success: true };
+      }),
+
+    // Delete an API key
+    delete: protectedProcedure
+      .input(z.object({
+        id: z.number(),
+      }))
+      .mutation(async ({ input }) => {
+        const db = await import('./db').then(m => m.getDb());
+        if (!db) throw new Error('Database not available');
+        
+        const { apiKeys } = await import('../drizzle/schema');
+        const { eq } = await import('drizzle-orm');
+        
+        await db.delete(apiKeys).where(eq(apiKeys.id, input.id));
+
+        return { success: true };
+      }),
   }),
 
   // Market Data
