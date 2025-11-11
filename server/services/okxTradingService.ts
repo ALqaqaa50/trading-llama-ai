@@ -1,6 +1,8 @@
 import ccxt from 'ccxt';
 import { getApiKeysByUserId } from '../db';
 import { decrypt } from '../utils/encryption';
+import { getApiKeys } from '../apiKeyDb';
+import { createTradingClient } from '../okx-trading';
 
 /**
  * OKX Trading Service - Automatic Trade Execution
