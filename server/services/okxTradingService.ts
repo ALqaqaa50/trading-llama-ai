@@ -193,6 +193,14 @@ export async function placeOrder(userId: number, order: TradeOrder): Promise<Tra
     };
   } catch (error: any) {
     console.error('Error placing order:', error);
+    console.error('Full error details:', JSON.stringify(error, null, 2));
+    
+    // Extract detailed error message from OKX
+    let detailedError = error.message;
+    if (error.code) {
+      detailedError = `OKX Error ${error.code}: ${error.message}`;
+    }
+    
     return {
       success: false,
       symbol: order.symbol,
@@ -200,7 +208,7 @@ export async function placeOrder(userId: number, order: TradeOrder): Promise<Tra
       amount: order.amount,
       status: 'failed',
       timestamp: new Date(),
-      error: error.message,
+      error: detailedError,
     };
   }
 }

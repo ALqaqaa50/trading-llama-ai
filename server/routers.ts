@@ -462,9 +462,21 @@ export const appRouter = router({
                   }
                   
                   try {
-                    // Check balance before execution
+                    // Auto-transfer funds from Funding to Spot if available
+                    const { autoTransferToSpot } = await import('./services/okxService');
+                    console.log('[Trade Execution] Attempting auto-transfer from Funding to Spot...');
+                    try {
+                      const transfers = await autoTransferToSpot(apiKey);
+                      if (transfers.length > 0) {
+                        console.log('[Trade Execution] Auto-transfer completed:', transfers);
+                      }
+                    } catch (transferError: any) {
+                      console.log('[Trade Execution] Auto-transfer failed (not critical):', transferError.message);
+                    }
+                    
+                    // Check balance before execution (now includes transferred funds)
                     const balances = await fetchBalance(apiKey);
-                    console.log('[Trade Execution] All balances from OKX:', balances);
+                    console.log('[Trade Execution] All balances from OKX (after transfer):', balances);
                     const usdtBalance = balances.find(b => b.currency === 'USDT');
                     console.log('[Trade Execution] USDT balance:', usdtBalance);
                     const availableBalance = usdtBalance ? parseFloat(usdtBalance.total.toString()) : 0;
@@ -478,11 +490,12 @@ export const appRouter = router({
                     // Check if balance is sufficient (minimum $1 to allow small trades)
                     if (availableBalance < 1) {
                       response = `❌ **الرصيد غير كافٍ!**\n\n` +
-                        `الرصيد المقروء من **Trading Account (Spot)**: $${availableBalance.toFixed(2)}\n` +
+                        `الرصيد الإجمالي المقروء من **جميع حسابات OKX**: $${availableBalance.toFixed(2)}\n` +
+                        `(Funding + Spot + Futures + Margin)\n\n` +
                         `الحد الأدنى المطلوب: $1.00\n\n` +
                         `💡 **الحلول المقترحة:**\n` +
-                        `1️⃣ انقل الرصيد من **Funding Account** إلى **Trading Account** في OKX\n` +
-                        `2️⃣ تأكد من وجود USDT في **Spot Trading Account**\n` +
+                        `1️⃣ أضف رصيد USDT إلى حسابك في OKX\n` +
+                        `2️⃣ تأكد من وجود رصيد في أي من الحسابات (Funding/Spot/Futures)\n` +
                         `3️⃣ تحقق من صحة مفاتيح API وصلاحية "Read"`;
                       
                       // Save chat message
@@ -572,6 +585,7 @@ export const appRouter = router({
                       
                       response = `❌ **فشل التنفيذ على OKX**\n\n` +
                         `📋 **السبب:** ${userFriendlyError}\n\n` +
+                        `🔍 **الخطأ الكامل من OKX:**\n${errorMessage}\n\n` +
                         `💡 **الحلول المقترحة:**\n` +
                         `1. تحقق من رصيد USDT في حسابك على OKX\n` +
                         `2. تأكد من صحة مفاتيح API في صفحة "مفاتيح API"\n` +

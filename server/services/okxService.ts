@@ -129,46 +129,67 @@ export async function fetchTicker(apiKey: ApiKey, symbol: string): Promise<Ticke
 }
 
 /**
- * Fetch account balance
+ * Fetch account balance from ALL OKX accounts (Funding + Trading + Futures)
  * @param apiKey - The API key object from database
- * @returns Array of balance data for all currencies
+ * @returns Array of balance data for each currency (aggregated from all accounts)
  */
 export async function fetchBalance(apiKey: ApiKey): Promise<BalanceData[]> {
   try {
     const exchange = createOKXInstance(apiKey);
     
-    // OKX has different account types: spot, funding, trading
-    // We need to fetch balance from the trading account specifically
-    const balance = await exchange.fetchBalance({ type: 'spot' });
+    // OKX has multiple account types:
+    // - 'funding': Funding Account (where deposits go)
+    // - 'spot': Spot Trading Account
+    // - 'swap': Futures/Perpetual Swap Account
+    // - 'future': Futures Account
+    // - 'margin': Margin Trading Account
     
-    console.log('[OKX] Raw balance response:', JSON.stringify(balance, null, 2));
+    const accountTypes = ['funding', 'spot', 'swap', 'future', 'margin'];
+    const aggregatedBalances: { [currency: string]: { free: number; used: number; total: number } } = {};
     
-    const balances: BalanceData[] = [];
+    console.log('[OKX] Fetching balances from all account types...');
     
-    // The balance object structure from ccxt:
-    // balance.free = { BTC: 0.001, USDT: 99.75, ... }
-    // balance.used = { BTC: 0, USDT: 0, ... }
-    // balance.total = { BTC: 0.001, USDT: 99.75, ... }
-    
-    if (balance.total) {
-      for (const [currency, totalAmount] of Object.entries(balance.total)) {
-        const total = Number(totalAmount) || 0;
-        const free = Number(balance.free?.[currency]) || 0;
-        const used = Number(balance.used?.[currency]) || 0;
+    // Fetch balance from each account type
+    for (const accountType of accountTypes) {
+      try {
+        console.log(`[OKX] Fetching balance from ${accountType} account...`);
+        const balance = await exchange.fetchBalance({ type: accountType });
         
-        // Only include currencies with non-zero balance
-        if (total > 0) {
-          balances.push({
-            currency,
-            free,
-            used,
-            total,
-          });
+        console.log(`[OKX] ${accountType} account balance:`, JSON.stringify(balance.total, null, 2));
+        
+        // Aggregate balances from this account type
+        if (balance.total) {
+          for (const [currency, totalAmount] of Object.entries(balance.total)) {
+            const total = Number(totalAmount) || 0;
+            const free = Number(balance.free?.[currency]) || 0;
+            const used = Number(balance.used?.[currency]) || 0;
+            
+            if (total > 0) {
+              if (!aggregatedBalances[currency]) {
+                aggregatedBalances[currency] = { free: 0, used: 0, total: 0 };
+              }
+              
+              aggregatedBalances[currency].free += free;
+              aggregatedBalances[currency].used += used;
+              aggregatedBalances[currency].total += total;
+            }
+          }
         }
+      } catch (error: any) {
+        // Some account types might not be accessible or enabled
+        console.log(`[OKX] Could not fetch ${accountType} balance (might not be enabled):`, error.message);
       }
     }
     
-    console.log('[OKX] Parsed balances:', balances);
+    // Convert aggregated balances to array
+    const balances: BalanceData[] = Object.entries(aggregatedBalances).map(([currency, amounts]) => ({
+      currency,
+      free: amounts.free,
+      used: amounts.used,
+      total: amounts.total,
+    }));
+    
+    console.log('[OKX] Total aggregated balances from ALL accounts:', balances);
     
     return balances;
   } catch (error) {
@@ -242,6 +263,121 @@ export async function placeLimitOrder(
     return order;
   } catch (error) {
     console.error('[OKX] Failed to place limit order:', error);
+    throw error;
+  }
+}
+
+/**
+ * Transfer funds between OKX accounts
+ * @param apiKey - The API key object from database
+ * @param currency - Currency to transfer (e.g., 'USDT')
+ * @param amount - Amount to transfer
+ * @param from - Source account type ('funding', 'spot', 'swap', etc.)
+ * @param to - Destination account type
+ * @returns Transfer result
+ */
+export async function transferFunds(
+  apiKey: ApiKey,
+  currency: string,
+  amount: number,
+  from: string,
+  to: string
+): Promise<any> {
+  try {
+    const exchange = createOKXInstance(apiKey);
+    
+    console.log(`[OKX] Transferring ${amount} ${currency} from ${from} to ${to}...`);
+    
+    // OKX transfer API
+    // Account type mapping for OKX API:
+    // '6' = Funding Account
+    // '18' = Spot Trading Account
+    // '1' = Futures Account
+    // '3' = Margin Account
+    // '5' = Swap Account
+    
+    const accountTypeMap: { [key: string]: string } = {
+      'funding': '6',
+      'spot': '18',
+      'future': '1',
+      'margin': '3',
+      'swap': '5',
+    };
+    
+    const fromType = accountTypeMap[from];
+    const toType = accountTypeMap[to];
+    
+    if (!fromType || !toType) {
+      throw new Error(`Invalid account type: from=${from}, to=${to}`);
+    }
+    
+    const result = await exchange.transfer(currency, amount, fromType, toType);
+    
+    console.log('[OKX] Transfer successful:', result);
+    
+    return result;
+  } catch (error) {
+    console.error('[OKX] Failed to transfer funds:', error);
+    throw error;
+  }
+}
+
+/**
+ * Automatically transfer all available funds from Funding Account to Spot Trading Account
+ * This ensures maximum available balance for trading
+ * @param apiKey - The API key object from database
+ * @returns Transfer results for each currency
+ */
+export async function autoTransferToSpot(apiKey: ApiKey): Promise<any[]> {
+  try {
+    const exchange = createOKXInstance(apiKey);
+    
+    console.log('[OKX] Checking Funding Account for available funds to transfer...');
+    
+    // Fetch balance from Funding Account only
+    const fundingBalance = await exchange.fetchBalance({ type: 'funding' });
+    
+    const transfers: any[] = [];
+    
+    if (fundingBalance.free) {
+      for (const [currency, freeAmount] of Object.entries(fundingBalance.free)) {
+        const amount = Number(freeAmount) || 0;
+        
+        // Only transfer if there's a meaningful amount (> 0.01 for most currencies)
+        if (amount > 0.01) {
+          try {
+            console.log(`[OKX] Found ${amount} ${currency} in Funding Account, transferring to Spot...`);
+            
+            const transferResult = await transferFunds(apiKey, currency, amount, 'funding', 'spot');
+            
+            transfers.push({
+              currency,
+              amount,
+              status: 'success',
+              result: transferResult,
+            });
+          } catch (error: any) {
+            console.error(`[OKX] Failed to transfer ${currency}:`, error.message);
+            transfers.push({
+              currency,
+              amount,
+              status: 'failed',
+              error: error.message,
+            });
+          }
+        }
+      }
+    }
+    
+    if (transfers.length === 0) {
+      console.log('[OKX] No funds found in Funding Account to transfer');
+    } else {
+      console.log(`[OKX] Completed ${transfers.length} transfers from Funding to Spot`);
+    }
+    
+    return transfers;
+  } catch (error) {
+    console.error('[OKX] Failed to auto-transfer funds:', error);
     throw error;
   }
 }
